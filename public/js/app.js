@@ -348,21 +348,35 @@ async function cargarGrafico(ticker, btnElement) {
     }
 
     currentTicker = ticker;
+    console.log('Cargando gráfico para:', ticker);
 
     // Actualizar tab activo
     const tabs = document.querySelectorAll('.tab-btn');
     if (tabs && tabs.length > 0) {
       tabs.forEach(btn => btn.classList.remove('active'));
-      if (btnElement) btnElement.classList.add('active');
+      if (btnElement) {
+        btnElement.classList.add('active');
+      } else {
+        // Si no hay btnElement, buscar el tab correcto
+        tabs.forEach(btn => {
+          if (btn.textContent.includes(ticker.split('.')[0])) {
+            btn.classList.add('active');
+          }
+        });
+      }
     }
 
     // Obtener datos históricos
+    console.log('Fetching historical data for:', ticker);
     const response = await fetch(`/api/historical/${ticker}`);
+
     if (!response.ok) {
+      console.error('Response error:', response.status, response.statusText);
       throw new Error(`HTTP ${response.status}`);
     }
 
     const result = await response.json();
+    console.log('Historical data loaded:', result.count, 'records');
 
     if (!result.data || result.data.length === 0) {
       console.warn('No hay datos históricos para ' + ticker);
@@ -370,6 +384,7 @@ async function cargarGrafico(ticker, btnElement) {
     }
 
     allHistoricalData[ticker] = result.data;
+    console.log('Mostrando gráfico...');
     mostrarGrafico();
     actualizarNivelesPrecio(ticker);
   } catch (error) {
