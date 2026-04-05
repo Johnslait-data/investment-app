@@ -1,0 +1,89 @@
+{
+  "meta": {
+    "usuario": "John",
+    "ubicacion": "Colombia (Medellín)",
+    "fechaCreacion": "2026-04-05",
+    "capitalInicial": 825000,
+    "aporteMensual": 425000,
+    "aporteBimestral": 850000,
+    "horizonteTiempo": "10 años",
+    "metodologia": "Warren Buffett - Value Investing"
+  },
+  "activos": {
+    "GEB": {
+      "nombre": "Grupo Energía Bogotá",
+      "ticker": "GEB.CL",
+      "precioActual": 2780.21,
+      "monto": 170000,
+      "porcentaje": 33,
+      "dividendYield": 8.3,
+      "moat": "Concesiones reguladas",
+      "sector": "Infraestructura energética",
+      "calificacion": "AAA",
+      "precioJusto": "3200-3500",
+      "accion": "COMPRA",
+      "razon": "Mejor oportunidad actual, yield alto"
+    },
+    "TERPEL": {
+      "nombre": "Organización Terpel",
+      "ticker": "TERPEL.CL",
+      "precioActual": 17700,
+      "monto": 68000,
+      "porcentaje": 13,
+      "dividendYield": 9.2,
+      "moat": "Red física + distribución",
+      "sector": "Distribución combustible",
+      "calificacion": "AAA",
+      "precioJusto": "19000-21000",
+      "accion": "COMPRA (pequeña)",
+      "razon": "Defensible, yield 9.2%, red física",
+      "cantidadAcciones": 3
+    },
+    "TITULARIZADORA": {
+      "nombre": "Titularizadora Colombiana",
+      "ticker": "Bono 10.4% / 5 años",
+      "precioActual": 100,
+      "monto": 272000,
+      "porcentaje": 54,
+      "tasa": 10.4,
+      "plazo": 5,
+      "calificacion": "AAA",
+      "accion": "COMPRA",
+      "razon": "Seguridad + 10.4% garantizado",
+      "vencimiento": "2031-04-05"
+    }
+  },
+  "distribucion": {
+    "acciones": {
+      "porcentaje": 46,
+      "total": 238000
+    },
+    "rentaFija": {
+      "porcentaje": 54,
+      "total": 272000
+    }
+  },
+  "comisiones": {
+    "triiBimestral": 14500,
+    "comisionAnual": 87000,
+    "eficiencia": "1.7%"
+  },
+  "proyecciones": {
+    "año1": {
+      "capitalInvertido": 3000000,
+      "valorCartera": 3320000,
+      "roiPorcentaje": 9.5
+    },
+    "año5": {
+      "capitalInvertido": 15300000,
+      "valorCartera": 23500000,
+      "ganancia": 8200000
+    },
+    "año10": {
+      "capitalInvertido": 30600000,
+      "valorCartera": 46000000,
+      "ganancia": 15400000,
+      "dividendosPasivosAnuales": 3500000
+    }
+  }
+}
