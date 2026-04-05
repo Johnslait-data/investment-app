@@ -558,6 +558,140 @@ body {
   color: var(--primary);
 }
 
+/* Graham Analysis */
+.graham-resultado {
+  margin-top: 20px;
+}
+
+.graham-card {
+  background: white;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.graham-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid var(--primary);
+}
+
+.graham-header h3 {
+  font-size: 1.3rem;
+  color: var(--text);
+  margin: 0;
+}
+
+.graham-accion {
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 1.1rem;
+  text-align: center;
+}
+
+.graham-accion.compra {
+  background: #d1fae5;
+  color: #065f46;
+  border: 2px solid var(--success);
+}
+
+.graham-accion.espera {
+  background: #fef3c7;
+  color: #92400e;
+  border: 2px solid var(--warning);
+}
+
+.graham-accion.evita {
+  background: #fee2e2;
+  color: #7f1d1d;
+  border: 2px solid var(--danger);
+}
+
+.graham-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.graham-metric {
+  background: var(--bg);
+  padding: 15px;
+  border-radius: 8px;
+  border-left: 4px solid var(--primary);
+}
+
+.graham-metric-label {
+  font-size: 0.85rem;
+  color: var(--text-light);
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+}
+
+.graham-metric-value {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.graham-scores {
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.scores-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.score-item {
+  background: white;
+  padding: 12px;
+  border-radius: 6px;
+  border-left: 4px solid var(--primary);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.score-label {
+  font-size: 0.8rem;
+  color: var(--text-light);
+  font-weight: 600;
+}
+
+.score-bar {
+  height: 20px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.score-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--success) 0%, var(--primary) 100%);
+  transition: width 0.3s ease;
+}
+
+.graham-razon {
+  background: #fef2f2;
+  border-left: 4px solid var(--danger);
+  padding: 15px;
+  border-radius: 6px;
+  color: #7f1d1d;
+  font-size: 0.95rem;
+  margin-top: 15px;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .header-content h1 {

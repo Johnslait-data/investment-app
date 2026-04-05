@@ -8,6 +8,8 @@ require('dotenv').config();
 
 const Anthropic = require('@anthropic-ai/sdk');
 const axios = require('axios');
+const GrahamAnalyzer = require('./server/graham-analyzer');
+const DatosFetcher = require('./server/datos-fetcher');
 
 const app = express();
 
@@ -481,6 +483,116 @@ app.put('/api/portfolio/sync-prices', async (req, res) => {
       source: 'Yahoo Finance (datos reales)'
     });
   } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/graham-analysis - Análisis Benjamin Graham
+app.post('/api/graham-analysis', async (req, res) => {
+  try {
+    const { ticker, datos } = req.body;
+
+    if (!ticker || !datos) {
+      return res.status(400).json({ error: 'Ticket y datos requeridos' });
+    }
+
+    const graham = new GrahamAnalyzer();
+    const analisis = graham.decisionFinal(datos, datos.precioActual);
+
+    res.json({
+      success: true,
+      ticker,
+      analisis,
+      timestamp: new Date().toISOString(),
+      framework: 'Benjamin Graham Value Investing'
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/graham-analysis/:ticker - Análisis Graham completo con datos reales
+app.get('/api/graham-analysis/:ticker', async (req, res) => {
+  try {
+    const ticker = req.params.ticker;
+    const acciones = JSON.parse(
+      fs.readFileSync(path.join(__dirname, 'data', 'acciones_colombia.json'), 'utf8')
+    );
+
+    const accion = acciones.acciones.find((a) => a.ticker === ticker);
+    if (!accion) {
+      return res.status(404).json({ error: `Ticker ${ticker} no encontrado` });
+    }
+
+    const precioActual = accion.precioActual;
+
+    // PASO 1: Obtener datos reales de Yahoo Finance
+    console.log(`📊 Obteniendo datos reales para ${ticker}...`);
+    let datosYahoo = await DatosFetcher.obtenerDatosYahoo(ticker);
+    datosYahoo = datosYahoo ? DatosFetcher.calcularMetricas(precioActual, datosYahoo) : {};
+
+    // PASO 2: Combinar datos Yahoo + datos locales
+    const datos = {
+      // Datos de Yahoo Finance (si existen)
+      ...datosYahoo,
+
+      // Datos locales (complementarios)
+      dividendYield: accion.dividendYield / 100,
+      moat: accion.moat,
+      precioActual,
+      sector: accion.sector,
+      calificacion: accion.calificacion,
+
+      // Valores por defecto si no tenemos datos Yahoo
+      roe: datosYahoo.roe || 12,
+      epsGrowth: datosYahoo.eps ? 5 : null,
+      netMargin: datosYahoo.netMargins || 10,
+      debtToCapital: datosYahoo.debtToCapital || 0.3,
+      currentRatio: datosYahoo.currentRatio || 1.8,
+      cashToDebt: datosYahoo.cashToDebt || 0.3,
+      fcfRatio: datosYahoo.fcfRatio || 0.85,
+      fcfGrowth: 5,
+      payoutRatio: (accion.dividendYield / 100) / 0.08, // Estimado
+      dividendGrowth: 4,
+      growthRate: 5
+    };
+
+    // PASO 3: Calcular Valor Intrínseco usando TODOS los métodos
+    console.log(`💰 Calculando valor intrínseco...`);
+    const viResults = DatosFetcher.calcularValorIntrínseco(precioActual, datos, datos.dividendYield);
+
+    const valorIntrínseco = viResults?.promedio || precioActual * 1.2; // Fallback
+
+    // PASO 4: Análisis Graham
+    const graham = new GrahamAnalyzer();
+    const analisisGraham = graham.decisionFinal(datos, precioActual);
+
+    // PASO 5: Respuesta completa
+    res.json({
+      success: true,
+      ticker,
+      nombre: accion.nombre,
+      precioActual,
+      datosReales: {
+        pe: datosYahoo.pe ? Math.round(datosYahoo.pe * 100) / 100 : null,
+        pb: datosYahoo.pb ? Math.round(datosYahoo.pb * 100) / 100 : null,
+        roe: datosYahoo.roe ? Math.round(datosYahoo.roe * 100) / 100 : null,
+        eps: datosYahoo.eps ? Math.round(datosYahoo.eps * 100) / 100 : null,
+        fuente: 'Yahoo Finance'
+      },
+      valorIntrínseco: {
+        promedio: valorIntrínseco,
+        métodos: viResults?.métodos || {},
+        confianza: viResults?.confianza || 50
+      },
+      analisisGraham,
+      sector: accion.sector,
+      moat: accion.moat,
+      timestamp: new Date().toISOString(),
+      framework: 'Benjamin Graham + Yahoo Finance + Análisis Fundamental'
+    });
+  } catch (error) {
+    console.error('Error en graham-analysis:', error);
     res.status(500).json({ error: error.message });
   }
 });

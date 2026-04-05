@@ -293,6 +293,7 @@ let currentTicker = 'GEB.CL';
 let currentPeriod = '5y';
 let allHistoricalData = {};
 let accionesDisponibles = [];
+let currentGrahamData = null; // Guardar datos Graham actuales
 
 // Configuración de precios Buffett para cada activo
 const buffettPrices = {
@@ -362,7 +363,6 @@ async function cargarGrafico(ticker, btnElement) {
       if (btnElement) {
         btnElement.classList.add('active');
       } else {
-        // Si no hay btnElement, buscar el tab correcto
         tabs.forEach(btn => {
           if (btn.textContent.includes(ticker.split('.')[0])) {
             btn.classList.add('active');
@@ -371,7 +371,7 @@ async function cargarGrafico(ticker, btnElement) {
       }
     }
 
-    // Obtener datos históricos
+    // PASO 1: Obtener datos históricos
     console.log('Fetching historical data for:', ticker);
     const response = await fetch(`/api/historical/${ticker}`);
 
@@ -389,6 +389,34 @@ async function cargarGrafico(ticker, btnElement) {
     }
 
     allHistoricalData[ticker] = result.data;
+
+    // PASO 2: Obtener análisis Graham para valores reales
+    console.log('Obteniendo análisis Graham...');
+    try {
+      const grahamResponse = await fetch(`/api/graham-analysis/${ticker}`);
+
+      if (!grahamResponse.ok) {
+        throw new Error(`HTTP ${grahamResponse.status}`);
+      }
+
+      const grahamData = await grahamResponse.json();
+
+      if (grahamData.success && grahamData.valorIntrínseco) {
+        currentGrahamData = grahamData;
+        console.log('✓ Valores Graham obtenidos:', {
+          VI: grahamData.valorIntrínseco.promedio,
+          confianza: grahamData.valorIntrínseco.confianza,
+          accion: grahamData.analisisGraham?.acción
+        });
+      } else {
+        console.warn('Graham data incomplete:', grahamData);
+        currentGrahamData = null;
+      }
+    } catch (e) {
+      console.warn('No se pudieron obtener valores Graham:', e.message);
+      currentGrahamData = null;
+    }
+
     console.log('Mostrando gráfico...');
     mostrarGrafico();
     actualizarNivelesPrecio(ticker);
@@ -430,11 +458,23 @@ function mostrarGrafico() {
     const width = canvas.width - padding * 2;
     const height = canvas.height - padding * 2;
 
-    // Obtener min/max de precios
+    // Obtener min/max de precios INCLUYENDO el precio actual
     const precios = datosFilados.map(d => d.close);
-    const minPrice = Math.min(...precios);
-    const maxPrice = Math.max(...precios);
-    const priceRange = maxPrice - minPrice || 1;
+    let minPrice = Math.min(...precios);
+    let maxPrice = Math.max(...precios);
+
+    // Asegurar que el rango incluya el precio actual para que no esté fuera de escala
+    if (currentGrahamData && currentGrahamData.precioActual) {
+      minPrice = Math.min(minPrice, currentGrahamData.precioActual);
+      maxPrice = Math.max(maxPrice, currentGrahamData.precioActual);
+    }
+
+    // Expandir rango con padding para claridad
+    let priceRange = maxPrice - minPrice || 1;
+    const padding_percent = 0.1; // 10% de padding
+    minPrice = minPrice - (priceRange * padding_percent);
+    maxPrice = maxPrice + (priceRange * padding_percent);
+    priceRange = maxPrice - minPrice; // Recalcular priceRange después del padding
 
     // Dibujar fondo
     ctx.fillStyle = '#ffffff';
@@ -458,46 +498,74 @@ function mostrarGrafico() {
       ctx.fillText('$' + Math.round(price).toLocaleString(), padding - 10, y + 5);
     }
 
-    // Dibujar líneas de referencia Buffett si existen
-    const buffettConfig = buffettPrices[currentTicker];
-    if (buffettConfig) {
-      // Línea Buffett (verde)
-      if (buffettConfig.buffett >= minPrice && buffettConfig.buffett <= maxPrice) {
-        const y = padding + height - ((buffettConfig.buffett - minPrice) / priceRange) * height;
-        ctx.strokeStyle = '#10b981';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([5, 5]);
-        ctx.beginPath();
-        ctx.moveTo(padding, y);
-        ctx.lineTo(canvas.width - padding, y);
-        ctx.stroke();
-        ctx.setLineDash([]);
+    // Dibujar líneas de referencia usando valores Graham reales
+    let precioBuffett = null;
+    let precioJusto = null;
 
-        // Label
-        ctx.fillStyle = '#10b981';
-        ctx.font = 'bold 0.75rem sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText('💚 Buffett', padding + 10, y - 5);
+    if (currentGrahamData && currentGrahamData.valorIntrínseco) {
+      const vi = currentGrahamData.valorIntrínseco.promedio;
+      precioBuffett = vi * 0.67; // 67% del VI (Buffett)
+      precioJusto = vi;            // 100% del VI (Justo)
+    } else {
+      // Fallback a valores locales si no hay datos Graham
+      const buffettConfig = buffettPrices[currentTicker];
+      if (buffettConfig) {
+        precioBuffett = buffettConfig.buffett;
+        precioJusto = buffettConfig.justo;
       }
+    }
 
-      // Línea Precio Justo (naranja)
-      if (buffettConfig.justo >= minPrice && buffettConfig.justo <= maxPrice) {
-        const y = padding + height - ((buffettConfig.justo - minPrice) / priceRange) * height;
-        ctx.strokeStyle = '#f59e0b';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([5, 5]);
-        ctx.beginPath();
-        ctx.moveTo(padding, y);
-        ctx.lineTo(canvas.width - padding, y);
-        ctx.stroke();
-        ctx.setLineDash([]);
+    // Línea Buffett (verde) - Entrada ideal
+    if (precioBuffett && precioBuffett >= minPrice && precioBuffett <= maxPrice) {
+      const y = padding + height - ((precioBuffett - minPrice) / priceRange) * height;
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.moveTo(padding, y);
+      ctx.lineTo(canvas.width - padding, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
 
-        // Label
-        ctx.fillStyle = '#f59e0b';
-        ctx.font = 'bold 0.75rem sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText('💛 Justo', padding + 10, y - 5);
-      }
+      ctx.fillStyle = '#10b981';
+      ctx.font = 'bold 0.75rem sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(`💚 Buffett: $${Math.round(precioBuffett).toLocaleString()}`, padding + 10, y - 5);
+    }
+
+    // Línea Precio Justo (naranja)
+    if (precioJusto && precioJusto >= minPrice && precioJusto <= maxPrice) {
+      const y = padding + height - ((precioJusto - minPrice) / priceRange) * height;
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.moveTo(padding, y);
+      ctx.lineTo(canvas.width - padding, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = '#f59e0b';
+      ctx.font = 'bold 0.75rem sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(`💛 Justo: $${Math.round(precioJusto).toLocaleString()}`, padding + 10, y - 5);
+    }
+
+    // Línea Precio Actual (azul sólido)
+    if (currentGrahamData && currentGrahamData.precioActual >= minPrice && currentGrahamData.precioActual <= maxPrice) {
+      const y = padding + height - ((currentGrahamData.precioActual - minPrice) / priceRange) * height;
+      ctx.strokeStyle = '#2563eb';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(padding, y);
+      ctx.lineTo(canvas.width - padding, y);
+      ctx.stroke();
+
+      ctx.fillStyle = '#2563eb';
+      ctx.font = 'bold 0.75rem sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(`📍 Actual: $${Math.round(currentGrahamData.precioActual).toLocaleString()}`, padding + 10, y + 12);
     }
 
     // Dibujar línea de precios
@@ -604,22 +672,40 @@ function mostrarEstadisticas(datos) {
 }
 
 function actualizarNivelesPrecio(ticker) {
-  const config = buffettPrices[ticker];
-  if (!config) return;
+  // Usar valores Graham reales si están disponibles
+  if (currentGrahamData && currentGrahamData.valorIntrínseco) {
+    const vi = currentGrahamData.valorIntrínseco.promedio;
+    const precioActual = currentGrahamData.precioActual;
 
-  document.getElementById('level-buffett').textContent =
-    `💚 Precio Buffett: $${formatearMonedaSimple(config.buffett)}`;
-  document.getElementById('level-justo').textContent =
-    `💛 Precio Justo: $${formatearMonedaSimple(config.justo)}`;
+    const precioBuffett = vi * 0.67;  // 67% VI
+    const precioJusto = vi;            // 100% VI
 
-  // Obtener precio actual
-  fetch(`/api/price/${ticker}`)
-    .then(r => r.json())
-    .then(data => {
-      document.getElementById('level-actual').textContent =
-        `📍 Precio Actual: $${formatearMonedaSimple(data.precioActual)}`;
-    })
-    .catch(err => console.error('Error obteniendo precio actual:', err));
+    document.getElementById('level-buffett').textContent =
+      `💚 Precio Buffett: $${formatearMonedaSimple(precioBuffett)} (Graham)`;
+    document.getElementById('level-justo').textContent =
+      `💛 Precio Justo: $${formatearMonedaSimple(precioJusto)} (Graham)`;
+    document.getElementById('level-actual').textContent =
+      `📍 Precio Actual: $${formatearMonedaSimple(precioActual)}`;
+
+    console.log('Valores Graham actualizados:', { precioBuffett, precioJusto, precioActual, vi });
+  } else {
+    // Fallback a valores locales
+    const config = buffettPrices[ticker];
+    if (!config) return;
+
+    document.getElementById('level-buffett').textContent =
+      `💚 Precio Buffett: $${formatearMonedaSimple(config.buffett)}`;
+    document.getElementById('level-justo').textContent =
+      `💛 Precio Justo: $${formatearMonedaSimple(config.justo)}`;
+
+    fetch(`/api/price/${ticker}`)
+      .then(r => r.json())
+      .then(data => {
+        document.getElementById('level-actual').textContent =
+          `📍 Precio Actual: $${formatearMonedaSimple(data.precioActual)}`;
+      })
+      .catch(err => console.error('Error obteniendo precio actual:', err));
+  }
 }
 
 function sincronizarPrecios() {
@@ -677,3 +763,166 @@ window.onclick = function(event) {
     modal.style.display = 'none';
   }
 }
+
+// BENJAMIN GRAHAM ANALYSIS
+async function analizarGraham() {
+  if (!currentTicker) {
+    alert('Selecciona una acción primero');
+    return;
+  }
+
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = '⏳ Analizando...';
+
+  try {
+    const response = await fetch(`/api/graham-analysis/${currentTicker}`);
+    const result = await response.json();
+
+    if (result.success && result.analisisGraham) {
+      mostrarAnalisisGraham(result);
+    } else {
+      console.error('Respuesta incompleta:', result);
+      alert('Error en análisis: ' + (result.error || 'Datos incompletos'));
+    }
+  } catch (error) {
+    console.error('Error:', error);
+    alert('Error al conectar con Graham analyzer');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '📊 Ejecutar Análisis Graham';
+  }
+}
+
+function mostrarAnalisisGraham(data) {
+  const analisis = data.analisisGraham;
+  if (!analisis) {
+    console.error('No hay analisisGraham en data:', data);
+    document.getElementById('graham-resultado').innerHTML = '<p style="color: red;">Error: No se pudo obtener análisis Graham</p>';
+    return;
+  }
+
+  const { acción, confianza, fundamentalScore, marginSeguridad, valorIntrínseco, precioActual, pozoCompra, detalleAnalisis } = analisis;
+  const viCalculado = data.valorIntrínseco?.promedio || valorIntrínseco;
+
+  // Determinar color de acción
+  let accionClass = 'evita';
+  if (acción.includes('COMPRA')) accionClass = 'compra';
+  else if (acción.includes('ESPERA')) accionClass = 'espera';
+
+  const html = `
+    <div class="graham-card">
+      <div class="graham-header">
+        <h3>${data.nombre} (${data.ticker})</h3>
+        <div class="graham-accion ${accionClass}">${acción}</div>
+      </div>
+
+      <div class="graham-grid">
+        <div class="graham-metric">
+          <div class="graham-metric-label">Confianza</div>
+          <div class="graham-metric-value">${confianza}%</div>
+        </div>
+        <div class="graham-metric">
+          <div class="graham-metric-label">Score Graham</div>
+          <div class="graham-metric-value">${fundamentalScore}/30</div>
+        </div>
+        <div class="graham-metric">
+          <div class="graham-metric-label">Margen Seguridad</div>
+          <div class="graham-metric-value" style="color: ${marginSeguridad >= 30 ? '#10b981' : '#f59e0b'}">
+            ${marginSeguridad}%
+          </div>
+        </div>
+        <div class="graham-metric">
+          <div class="graham-metric-label">Precio Actual</div>
+          <div class="graham-metric-value" style="color: var(--text)">$${formatearMonedaSimple(precioActual)}</div>
+        </div>
+      </div>
+
+      <div class="graham-scores">
+        <h4 style="margin-top: 0; color: var(--text);">📋 Análisis Fundamental (0-5 puntos cada)</h4>
+        <div class="scores-grid">
+          <div class="score-item">
+            <div class="score-label">Rentabilidad</div>
+            <div class="score-bar">
+              <div class="score-fill" style="width: ${(detalleAnalisis.analisis.rentabilidad / 5) * 100}%"></div>
+            </div>
+            <div style="font-size: 0.9rem; font-weight: 600; color: var(--primary);">${detalleAnalisis.analisis.rentabilidad}/5</div>
+          </div>
+          <div class="score-item">
+            <div class="score-label">Balance</div>
+            <div class="score-bar">
+              <div class="score-fill" style="width: ${(detalleAnalisis.analisis.balance / 5) * 100}%"></div>
+            </div>
+            <div style="font-size: 0.9rem; font-weight: 600; color: var(--primary);">${detalleAnalisis.analisis.balance}/5</div>
+          </div>
+          <div class="score-item">
+            <div class="score-label">Flujo Caja</div>
+            <div class="score-bar">
+              <div class="score-fill" style="width: ${(detalleAnalisis.analisis.flujosCaja / 5) * 100}%"></div>
+            </div>
+            <div style="font-size: 0.9rem; font-weight: 600; color: var(--primary);">${detalleAnalisis.analisis.flujosCaja}/5</div>
+          </div>
+          <div class="score-item">
+            <div class="score-label">Dividendos</div>
+            <div class="score-bar">
+              <div class="score-fill" style="width: ${(detalleAnalisis.analisis.dividendos / 5) * 100}%"></div>
+            </div>
+            <div style="font-size: 0.9rem; font-weight: 600; color: var(--primary);">${detalleAnalisis.analisis.dividendos}/5</div>
+          </div>
+          <div class="score-item">
+            <div class="score-label">Valuación</div>
+            <div class="score-bar">
+              <div class="score-fill" style="width: ${(detalleAnalisis.analisis.valuacion / 5) * 100}%"></div>
+            </div>
+            <div style="font-size: 0.9rem; font-weight: 600; color: var(--primary);">${detalleAnalisis.analisis.valuacion}/5</div>
+          </div>
+          <div class="score-item">
+            <div class="score-label">Moat</div>
+            <div class="score-bar">
+              <div class="score-fill" style="width: ${(detalleAnalisis.analisis.moat / 5) * 100}%"></div>
+            </div>
+            <div style="font-size: 0.9rem; font-weight: 600; color: var(--primary);">${detalleAnalisis.analisis.moat}/5</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="graham-grid">
+        <div class="graham-metric" style="border-left-color: #10b981;">
+          <div class="graham-metric-label">💚 Precio Buffett (Entrada ideal)</div>
+          <div class="graham-metric-value" style="color: #10b981;">$${formatearMonedaSimple(viCalculado * 0.67)}</div>
+        </div>
+        <div class="graham-metric" style="border-left-color: #f59e0b;">
+          <div class="graham-metric-label">💛 Precio Justo (VI)</div>
+          <div class="graham-metric-value" style="color: #f59e0b;">$${formatearMonedaSimple(viCalculado)}</div>
+        </div>
+        <div class="graham-metric" style="border-left-color: #ef4444;">
+          <div class="graham-metric-label">🔥 Pozo de Compra (Máximo -33%)</div>
+          <div class="graham-metric-value" style="color: #ef4444;">$${formatearMonedaSimple(viCalculado * 0.67)}</div>
+        </div>
+      </div>
+
+      ${data.moat ? `
+        <div style="background: #f0fdf4; padding: 15px; border-radius: 8px; margin-top: 15px; border-left: 4px solid var(--success);">
+          <strong style="color: var(--success);">🏰 Moat (Foso Económico):</strong>
+          <p style="margin: 8px 0 0 0; color: var(--text);">${data.moat}</p>
+        </div>
+      ` : ''}
+
+      ${analisis.razón ? `<div class="graham-razon">⚠️ ${analisis.razón}</div>` : ''}
+
+      <div style="background: #f0f9ff; padding: 15px; border-radius: 8px; margin-top: 15px; border-left: 4px solid var(--primary);">
+        <strong style="color: var(--primary);">📊 Interpretación:</strong>
+        <ul style="margin: 10px 0 0 20px; color: var(--text);">
+          <li><strong>≥ 20 puntos:</strong> COMPRA - Fundamental sólido</li>
+          <li><strong>15-19 puntos:</strong> ESPERA - Espera mejor precio</li>
+          <li><strong>&lt; 15 puntos:</strong> EVITA - No cumple criterios</li>
+          <li><strong>Margen ≥ 30%:</strong> Margen de seguridad adecuado</li>
+          <li><strong>Margen &lt; 15%:</strong> Sin margen de seguridad</li>
+        </ul>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('graham-resultado').innerHTML = html;
+}
+
