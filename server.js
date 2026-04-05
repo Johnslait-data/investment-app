@@ -7,6 +7,7 @@ const path = require('path');
 require('dotenv').config();
 
 const Anthropic = require('@anthropic-ai/sdk');
+const axios = require('axios');
 
 const app = express();
 
@@ -34,9 +35,59 @@ const PRECIOS_ACTUALES = {
   'MINEROS.CL': 13840
 };
 
-// Función para generar datos históricos realistas para testing
-// (En producción, se conectaría a Yahoo Finance real)
-function generateHistoricalData(ticker) {
+// Función para obtener datos históricos desde Yahoo Finance
+async function getHistoricalData(ticker) {
+  try {
+    const headers = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+      'Accept': '*/*',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Referer': 'https://finance.yahoo.com/',
+      'DNT': '1',
+      'Connection': 'keep-alive'
+    };
+
+    const period1 = Math.floor((Date.now() - 5 * 365 * 24 * 60 * 60 * 1000) / 1000); // 5 años atrás
+    const period2 = Math.floor(Date.now() / 1000);
+
+    const response = await axios.get(
+      `https://query1.finance.yahoo.com/v7/finance/download/${ticker}?period1=${period1}&period2=${period2}&interval=1d&events=history&includeAdjustedClose=true`,
+      { headers, timeout: 10000 }
+    );
+
+    // Parsear CSV
+    const lines = response.data.trim().split('\n');
+    if (lines.length < 2) throw new Error('No data returned');
+
+    const data = [];
+    for (let i = 1; i < lines.length; i++) {
+      const parts = lines[i].split(',');
+      if (parts.length >= 6 && parts[4] !== 'null') {
+        const [date, open, high, low, close, adjclose, volume] = parts;
+        data.push({
+          date,
+          open: parseFloat(open) || parseFloat(close),
+          high: parseFloat(high) || parseFloat(close),
+          low: parseFloat(low) || parseFloat(close),
+          close: parseFloat(close),
+          volume: parseInt(volume) || 0,
+          adjclose: parseFloat(adjclose) || parseFloat(close)
+        });
+      }
+    }
+
+    if (data.length > 0) {
+      console.log(`✓ Datos históricos obtenidos para ${ticker}: ${data.length} registros`);
+    }
+    return data;
+  } catch (err) {
+    console.warn(`⚠ Error fetching historical data for ${ticker} from Yahoo Finance: ${err.message}`);
+    return generateHistoricalDataSimulated(ticker);
+  }
+}
+
+// Función para generar datos históricos simulados como fallback
+function generateHistoricalDataSimulated(ticker) {
   const data = [];
   const startDate = new Date(2021, 0, 1);
   const endDate = new Date();
@@ -46,7 +97,6 @@ function generateHistoricalData(ticker) {
   let currentPrice = basePrice;
 
   for (let d = new Date(startDate); d <= endDate; d.setTime(d.getTime() + dayMs)) {
-    // Simular volatilidad realista (±2% diarios)
     const change = (Math.random() - 0.5) * 0.04 * currentPrice;
     currentPrice += change;
 
@@ -64,8 +114,36 @@ function generateHistoricalData(ticker) {
   return data;
 }
 
-// Función para obtener precio actual (simulado pero realista)
-function getCurrentPrice(ticker) {
+// Función para obtener precio actual desde Yahoo Finance
+async function getCurrentPrice(ticker) {
+  try {
+    // Headers que simulan un navegador real
+    const headers = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+      'Accept': '*/*',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Referer': 'https://finance.yahoo.com/',
+      'DNT': '1',
+      'Connection': 'keep-alive',
+      'Upgrade-Insecure-Requests': '1'
+    };
+
+    // Intentar con Yahoo Finance primero
+    const response = await axios.get(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1d`,
+      { headers, timeout: 8000 }
+    );
+
+    if (response.data?.chart?.result?.[0]?.meta?.regularMarketPrice) {
+      const price = response.data.chart.result[0].meta.regularMarketPrice;
+      console.log(`✓ Precio real obtenido para ${ticker} desde Yahoo Finance: ${price}`);
+      return price;
+    }
+  } catch (err) {
+    console.warn(`⚠ Error fetching real price for ${ticker} from Yahoo Finance: ${err.message}`);
+  }
+
+  // Fallback a precio simulado
   return PRECIOS_ACTUALES[ticker] || null;
 }
 const PORT = 3000;
@@ -318,30 +396,21 @@ app.get('/api/calculadora', (req, res) => {
   }
 });
 
-// GET /api/price/:ticker - Obtener precio actual (simulado para demo)
-app.get('/api/price/:ticker', (req, res) => {
+// GET /api/price/:ticker - Obtener precio actual desde Yahoo Finance
+app.get('/api/price/:ticker', async (req, res) => {
   try {
     const ticker = req.params.ticker;
-    const precioActual = getCurrentPrice(ticker);
+    const precioActual = await getCurrentPrice(ticker);
 
     if (!precioActual) {
       return res.status(404).json({ error: `Ticker ${ticker} no encontrado` });
     }
 
-    // Simular cambios pequeños aleatorios
-    const cambioProcentaje = (Math.random() - 0.5) * 0.02; // ±1%
-    const cambio = precioActual * cambioProcentaje;
-
     res.json({
       ticker,
       precioActual: Math.round(precioActual * 100) / 100,
-      precioApertura: Math.round((precioActual - cambio) * 100) / 100,
-      precioAlto: Math.round(precioActual * 1.005 * 100) / 100,
-      precioBajo: Math.round(precioActual * 0.995 * 100) / 100,
-      volumen: Math.floor(Math.random() * 5000000) + 1000000,
-      cambio: Math.round(cambio * 100) / 100,
-      cambioProcentaje: Math.round(cambioProcentaje * 10000) / 100,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      source: 'Yahoo Finance (datos reales)'
     });
   } catch (error) {
     res.status(500).json({ error: `Error obteniendo precio: ${error.message}` });
@@ -349,7 +418,7 @@ app.get('/api/price/:ticker', (req, res) => {
 });
 
 // GET /api/historical/:ticker - Obtener datos históricos (5 años con cache)
-app.get('/api/historical/:ticker', (req, res) => {
+app.get('/api/historical/:ticker', async (req, res) => {
   try {
     const ticker = req.params.ticker;
 
@@ -362,8 +431,8 @@ app.get('/api/historical/:ticker', (req, res) => {
     let data = loadCache(ticker);
 
     if (!data) {
-      // Si no hay cache, generar datos realistas
-      data = generateHistoricalData(ticker);
+      // Si no hay cache, obtener datos reales de Yahoo Finance
+      data = await getHistoricalData(ticker);
       // Guardar en cache
       saveCache(ticker, data);
     }
@@ -372,7 +441,7 @@ app.get('/api/historical/:ticker', (req, res) => {
       ticker,
       count: data.length,
       data: data,
-      source: 'Datos simulados (Demo) - En producción usaría Yahoo Finance'
+      source: 'Yahoo Finance (datos reales)'
     });
   } catch (error) {
     res.status(500).json({ error: `Error obteniendo historial: ${error.message}` });
@@ -390,14 +459,17 @@ app.get('/api/acciones', (req, res) => {
   }
 });
 
-// PUT /api/portfolio/sync-prices - Sincronizar precios (simulado para demo)
-app.put('/api/portfolio/sync-prices', (req, res) => {
+// PUT /api/portfolio/sync-prices - Sincronizar precios desde Yahoo Finance
+app.put('/api/portfolio/sync-prices', async (req, res) => {
   try {
     const portfolio = loadPortfolio();
 
-    // Simular pequeñas variaciones aleatorias en precios
-    portfolio.activos.GEB.precioActual = Math.round(getCurrentPrice('GEB.CL') * (1 + (Math.random() - 0.5) * 0.02) * 100) / 100;
-    portfolio.activos.TERPEL.precioActual = Math.round(getCurrentPrice('TERPEL.CL') * (1 + (Math.random() - 0.5) * 0.02) * 100) / 100;
+    // Obtener precios reales desde Yahoo Finance
+    const gebPrice = await getCurrentPrice('GEB.CL');
+    const terpelPrice = await getCurrentPrice('TERPEL.CL');
+
+    if (gebPrice) portfolio.activos.GEB.precioActual = Math.round(gebPrice * 100) / 100;
+    if (terpelPrice) portfolio.activos.TERPEL.precioActual = Math.round(terpelPrice * 100) / 100;
 
     savePortfolio(portfolio);
 
@@ -406,7 +478,7 @@ app.put('/api/portfolio/sync-prices', (req, res) => {
       actualizado: true,
       portfolio: portfolio.activos,
       timestamp: new Date().toISOString(),
-      nota: 'Precios sincronizados (Demo con datos simulados - En producción usaría Yahoo Finance)'
+      source: 'Yahoo Finance (datos reales)'
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

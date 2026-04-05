@@ -1,7 +1,23 @@
-// Cargar portafolio al iniciar
+// Cargar portafolio y gráficos al iniciar
 document.addEventListener('DOMContentLoaded', () => {
   cargarPortafolio();
   cargarTransacciones();
+
+  // Esperar a que TradingView Lightweight Charts cargue
+  if (typeof LightweightCharts !== 'undefined') {
+    cargarTabsAcciones();
+  } else {
+    // Si la librería aún no ha cargado, esperar a que esté disponible
+    let attempts = 0;
+    const checkLibrary = setInterval(() => {
+      if (typeof LightweightCharts !== 'undefined') {
+        clearInterval(checkLibrary);
+        cargarTabsAcciones();
+      }
+      attempts++;
+      if (attempts > 50) clearInterval(checkLibrary); // 5 segundos máximo
+    }, 100);
+  }
 });
 
 // Cargar portafolio
@@ -396,97 +412,151 @@ function mostrarGrafico() {
   const container = document.getElementById('chart-container');
   const datos = allHistoricalData[currentTicker];
 
-  if (!datos) return;
+  if (!container) {
+    console.error('Chart container not found');
+    return;
+  }
+
+  if (!datos || datos.length === 0) {
+    console.warn('No datos para mostrar gráfico');
+    return;
+  }
 
   // Filtrar datos por período
   const datosFilados = filtrarPorPeriodo(datos, currentPeriod);
 
-  // Destruir gráfico anterior si existe
-  if (chart) {
-    chart.remove();
-    chart = null;
+  // Limpiar container
+  container.innerHTML = '';
+
+  try {
+    // Crear canvas
+    const canvas = document.createElement('canvas');
+    canvas.width = container.clientWidth || 800;
+    canvas.height = 450;
+    canvas.style.display = 'block';
+    container.appendChild(canvas);
+
+    const ctx = canvas.getContext('2d');
+    const padding = 60;
+    const width = canvas.width - padding * 2;
+    const height = canvas.height - padding * 2;
+
+    // Obtener min/max de precios
+    const precios = datosFilados.map(d => d.close);
+    const minPrice = Math.min(...precios);
+    const maxPrice = Math.max(...precios);
+    const priceRange = maxPrice - minPrice || 1;
+
+    // Dibujar fondo
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Dibujar grid
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 5; i++) {
+      const y = padding + (height / 5) * i;
+      ctx.beginPath();
+      ctx.moveTo(padding, y);
+      ctx.lineTo(canvas.width - padding, y);
+      ctx.stroke();
+
+      // Labels de precio
+      const price = maxPrice - (priceRange / 5) * i;
+      ctx.fillStyle = '#64748b';
+      ctx.font = '0.8rem sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText('$' + Math.round(price).toLocaleString(), padding - 10, y + 5);
+    }
+
+    // Dibujar líneas de referencia Buffett si existen
+    const buffettConfig = buffettPrices[currentTicker];
+    if (buffettConfig) {
+      // Línea Buffett (verde)
+      if (buffettConfig.buffett >= minPrice && buffettConfig.buffett <= maxPrice) {
+        const y = padding + height - ((buffettConfig.buffett - minPrice) / priceRange) * height;
+        ctx.strokeStyle = '#10b981';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.moveTo(padding, y);
+        ctx.lineTo(canvas.width - padding, y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Label
+        ctx.fillStyle = '#10b981';
+        ctx.font = 'bold 0.75rem sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('💚 Buffett', padding + 10, y - 5);
+      }
+
+      // Línea Precio Justo (naranja)
+      if (buffettConfig.justo >= minPrice && buffettConfig.justo <= maxPrice) {
+        const y = padding + height - ((buffettConfig.justo - minPrice) / priceRange) * height;
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.moveTo(padding, y);
+        ctx.lineTo(canvas.width - padding, y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Label
+        ctx.fillStyle = '#f59e0b';
+        ctx.font = 'bold 0.75rem sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('💛 Justo', padding + 10, y - 5);
+      }
+    }
+
+    // Dibujar línea de precios
+    ctx.strokeStyle = '#2563eb';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+
+    datosFilados.forEach((d, idx) => {
+      const x = padding + (width / (datosFilados.length - 1 || 1)) * idx;
+      const y = padding + height - ((d.close - minPrice) / priceRange) * height;
+
+      if (idx === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    });
+
+    ctx.stroke();
+
+    // Dibujar area bajo la línea
+    ctx.fillStyle = 'rgba(37, 99, 235, 0.1)';
+    ctx.lineTo(canvas.width - padding, padding + height);
+    ctx.lineTo(padding, padding + height);
+    ctx.closePath();
+    ctx.fill();
+
+    // Dibujar ejes
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(padding, padding);
+    ctx.lineTo(padding, canvas.height - padding);
+    ctx.lineTo(canvas.width - padding, canvas.height - padding);
+    ctx.stroke();
+
+    // Título
+    ctx.fillStyle = '#1e293b';
+    ctx.font = 'bold 1.2rem sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${currentTicker} - Últimos ${datosFilados.length} días`, canvas.width / 2, 30);
+
+    console.log('Gráfico renderizado exitosamente con Canvas');
+    mostrarEstadisticas(datosFilados);
+  } catch (error) {
+    console.error('Error creando gráfico:', error);
+    container.innerHTML = '<div style="background: #fef2f2; color: #7f1d1d; padding: 20px; border-radius: 8px; border-left: 4px solid #ef4444;"><p><strong>Error al renderizar gráfico:</strong></p><p>' + error.message + '</p></div>';
   }
-
-  // Crear nuevo gráfico
-  const chartOptions = {
-    layout: {
-      textColor: '#1e293b',
-      backgroundColor: '#ffffff',
-    },
-    timeScale: {
-      timeVisible: true,
-      secondsVisible: false,
-      rightOffset: 12,
-    },
-    crosshair: {
-      mode: LightweightCharts.CrosshairMode.Normal,
-    },
-  };
-
-  chart = LightweightCharts.createChart(container, {
-    width: container.clientWidth,
-    height: 450,
-    ...chartOptions
-  });
-
-  // Agregar línea de precios
-  lineSeries = chart.addLineSeries({
-    color: '#2563eb',
-    lineWidth: 2,
-  });
-
-  // Preparar datos para el gráfico (convertir a timestamp Unix)
-  const dataForChart = datosFilados.map(d => ({
-    time: new Date(d.date).getTime() / 1000, // timestamp Unix en segundos
-    value: d.close
-  }));
-
-  lineSeries.setData(dataForChart);
-
-  // Agregar líneas de referencia (Buffett y precio justo)
-  agregarLineasReferencia(datosFilados);
-
-  // Fitear el gráfico al contenedor
-  chart.timeScale().fitContent();
-
-  // Agregar volumen como promedio móvil visual
-  mostrarEstadisticas(datosFilados);
-}
-
-function agregarLineasReferencia(datos) {
-  if (!chart) return;
-
-  const config = buffettPrices[currentTicker];
-  if (!config) return;
-
-  const timeStart = (new Date(datos[0].date).getTime()) / 1000;
-  const timeEnd = (new Date(datos[datos.length - 1].date).getTime()) / 1000;
-
-  // Línea de precio Buffett (verde)
-  const buffettSeries = chart.addLineSeries({
-    color: '#10b981',
-    lineWidth: 1,
-    lineStyle: LightweightCharts.LineStyle.Dashed,
-    title: 'Precio Buffett'
-  });
-
-  buffettSeries.setData([
-    { time: timeStart, value: config.buffett },
-    { time: timeEnd, value: config.buffett }
-  ]);
-
-  // Línea de precio justo (naranja)
-  const justoSeries = chart.addLineSeries({
-    color: '#f59e0b',
-    lineWidth: 1,
-    lineStyle: LightweightCharts.LineStyle.Dashed,
-    title: 'Precio Justo'
-  });
-
-  justoSeries.setData([
-    { time: timeStart, value: config.justo },
-    { time: timeEnd, value: config.justo }
-  ]);
 }
 
 function filtrarPorPeriodo(datos, periodo) {
@@ -593,16 +663,6 @@ function formatearMonedaSimple(valor) {
   return valor.toLocaleString('es-CO', { maximumFractionDigits: 0 });
 }
 
-// Cargar tabs y gráfico inicial al abrir la página
-document.addEventListener('DOMContentLoaded', () => {
-  setTimeout(() => {
-    try {
-      cargarTabsAcciones();
-    } catch (err) {
-      console.error('Error cargando tabs:', err);
-    }
-  }, 500);
-});
 
 // Utilidades
 function formatearMoneda(valor) {
