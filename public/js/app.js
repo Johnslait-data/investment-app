@@ -1,23 +1,12 @@
 // Cargar portafolio y gráficos al iniciar
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('DOMContentLoaded event fired');
   cargarPortafolio();
   cargarTransacciones();
 
-  // Esperar a que TradingView Lightweight Charts cargue
-  if (typeof LightweightCharts !== 'undefined') {
-    cargarTabsAcciones();
-  } else {
-    // Si la librería aún no ha cargado, esperar a que esté disponible
-    let attempts = 0;
-    const checkLibrary = setInterval(() => {
-      if (typeof LightweightCharts !== 'undefined') {
-        clearInterval(checkLibrary);
-        cargarTabsAcciones();
-      }
-      attempts++;
-      if (attempts > 50) clearInterval(checkLibrary); // 5 segundos máximo
-    }, 100);
-  }
+  // Llamar cargarTabsAcciones directamente (no necesita librerías externas con Canvas)
+  console.log('Llamando cargarTabsAcciones...');
+  cargarTabsAcciones().catch(err => console.error('Error en cargarTabsAcciones:', err));
 });
 
 // Cargar portafolio
