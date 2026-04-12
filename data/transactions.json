@@ -1,0 +1,31 @@
+{
+  "transactions": [
+    {
+      "id": 1,
+      "fecha": "2026-04-05",
+      "tipo": "compra",
+      "activos": [
+        {
+          "ticker": "GEB",
+          "cantidad": 61,
+          "precioUnitario": 2800,
+          "total": 170000
+        },
+        {
+          "ticker": "TERPEL",
+          "cantidad": 3,
+          "precioUnitario": 19700,
+          "total": 68000
+        },
+        {
+          "ticker": "TITULARIZADORA",
+          "monto": 272000,
+          "tasa": 10.4
+        }
+      ],
+      "comision": 14500,
+      "totalNeto": 495500,
+      "notas": "Compra inicial bimestre 1"
+    }
+  ]
+}
