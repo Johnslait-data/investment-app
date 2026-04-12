@@ -1,0 +1,22 @@
+{
+  "positions": [
+    {
+      "id": "2026-04-12T01:34:05.232172",
+      "ticker": "ECOPETROL.CL",
+      "company": "Ecopetrol S.A",
+      "entry_date": "2026-04-12",
+      "entry_price": 2555.0,
+      "shares": 1000,
+      "total_invested": 2555000.0,
+      "target_price": 2300.0,
+      "stop_loss": 2450.0,
+      "decision": "prueba test",
+      "status": "OPEN",
+      "current_price": null,
+      "current_value": null,
+      "pnl_pct": null,
+      "exit_price": null,
+      "exit_date": null
+    }
+  ]
+}

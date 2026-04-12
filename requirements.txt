@@ -1,0 +1,6 @@
+streamlit==1.37.0
+yfinance==0.2.39
+pandas==2.2.2
+numpy==1.26.4
+plotly==5.20.0
+python-dotenv==1.0.1
