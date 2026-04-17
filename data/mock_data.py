@@ -1,0 +1,55 @@
+"""
+Mock stock data for testing and fallback
+No API calls needed - perfect for testing rate limiting issues
+"""
+
+MOCK_DATA = {
+    "AAPL": {
+        "ticker": "AAPL",
+        "source": "MOCK",
+        "name": "Apple Inc.",
+        "current_price": 260.48,
+        "eps": 6.05,
+        "pb_ratio": 5.78,
+        "pe_ratio": 43.0,
+        "book_value_per_share": 45.0,
+        "current_ratio": 0.97,
+        "total_debt": 106e9,
+        "total_equity": 54e9,
+        "roe": 1.52,
+        "52week_high": 280.0,
+        "52week_low": 195.0,
+    },
+    "BRK.B": {
+        "ticker": "BRK.B",
+        "source": "MOCK",
+        "name": "Berkshire Hathaway Inc.",
+        "current_price": 430.0,
+        "eps": 42.5,
+        "pb_ratio": 1.35,
+        "pe_ratio": 10.1,
+        "book_value_per_share": 50.0,
+        "current_ratio": 1.8,
+        "total_debt": 7e9,
+        "total_equity": 900e9,
+        "roe": 0.085,
+        "52week_high": 450.0,
+        "52week_low": 380.0,
+    },
+    "MSFT": {
+        "ticker": "MSFT",
+        "source": "MOCK",
+        "name": "Microsoft Corporation",
+        "current_price": 425.0,
+        "eps": 13.1,
+        "pb_ratio": 16.2,
+        "pe_ratio": 32.4,
+        "book_value_per_share": 25.0,
+        "current_ratio": 1.2,
+        "total_debt": 29e9,
+        "total_equity": 160e9,
+        "roe": 0.35,
+        "52week_high": 440.0,
+        "52week_low": 310.0,
+    },
+}
