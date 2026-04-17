@@ -1,12 +1,13 @@
 """
-Demo Mode — Test Dashboard with Mock Data
-Perfect for testing the UI without API rate limits
+Demo Mode — Real Data Dashboard
+Uses real FMP API data with automatic fallback to mock data
 """
 import streamlit as st
 import plotly.graph_objects as go
 from analysis.graham import GrahamAnalyzer
 from analysis.fundamentals import FundamentalsAnalyzer
 from analysis.scoring import InvestmentScorer
+from data.unified_fetcher import UnifiedStockFetcher
 
 st.set_page_config(
     page_title="Investment Analyzer - Demo",
@@ -14,48 +15,64 @@ st.set_page_config(
     layout="wide",
 )
 
-# Mock data (same as demo_mock.py)
-mock_stocks = [
-    {
-        "ticker": "AAPL",
-        "name": "Apple Inc.",
-        "price": 260.48,
-        "eps": 6.05,
-        "book_value": 45.0,
-        "pe_ratio": 43.0,
-        "pb_ratio": 5.78,
-        "current_ratio": 0.97,
-        "total_debt": 106e9,
-        "total_equity": 54e9,
-        "roe": 1.52,
-    },
-    {
-        "ticker": "BRK.B",
-        "name": "Berkshire Hathaway Inc.",
-        "price": 430.0,
-        "eps": 42.5,
-        "book_value": 50.0,
-        "pe_ratio": 10.1,
-        "pb_ratio": 1.35,
-        "current_ratio": 1.8,
-        "total_debt": 7e9,
-        "total_equity": 900e9,
-        "roe": 0.085,
-    },
-    {
-        "ticker": "MSFT",
-        "name": "Microsoft Corporation",
-        "price": 425.0,
-        "eps": 13.1,
-        "book_value": 25.0,
-        "pe_ratio": 32.4,
-        "pb_ratio": 16.2,
-        "current_ratio": 1.2,
-        "total_debt": 29e9,
-        "total_equity": 100e9,
-        "roe": 0.35,
-    },
-]
+# Load real data from FMP with automatic fallback
+@st.cache_data(ttl=3600)
+def load_demo_stocks():
+    """Load real stock data from FMP API with fallback to mock"""
+    from data.mock_data import MOCK_DATA
+
+    fetcher = UnifiedStockFetcher()
+    tickers = ["AAPL", "BRK.B", "MSFT"]
+    stocks = []
+
+    for ticker in tickers:
+        try:
+            # Get real data from FMP (or cache/mock fallback)
+            data = fetcher.get_stock_data(ticker, prefer_cache=False)
+
+            if data and data.get("price"):
+                # Check if we have key metrics for analysis
+                has_key_metrics = (
+                    data.get("eps")
+                    and data.get("book_value_per_share")
+                    and data.get("pe_ratio")
+                    and data.get("pb_ratio")
+                )
+
+                # If missing key metrics from FMP, try to use mock data or estimate
+                if not has_key_metrics and ticker in MOCK_DATA:
+                    mock = MOCK_DATA[ticker]
+                    data = {**data, **mock}  # Merge mock data for missing fields
+                    data["source"] = f"{data.get('source', 'UNKNOWN')} + MOCK"
+
+                stock = {
+                    "ticker": data.get("ticker", ticker),
+                    "name": data.get("name", ticker),
+                    "price": data.get("price") or data.get("current_price", 0),
+                    "eps": data.get("eps", 0),
+                    "book_value": data.get("book_value_per_share", 0),
+                    "pe_ratio": data.get("pe_ratio", 0),
+                    "pb_ratio": data.get("pb_ratio", 0),
+                    "current_ratio": data.get("current_ratio", 0),
+                    "total_debt": data.get("total_debt", 0),
+                    "total_equity": data.get("total_equity", 0),
+                    "roe": data.get("roe", 0),
+                    "source": data.get("source", "UNKNOWN"),
+                }
+                stocks.append(stock)
+        except Exception as e:
+            st.warning(f"Could not load {ticker}: {e}")
+
+    return stocks if stocks else None
+
+# Load stocks
+demo_stocks = load_demo_stocks()
+
+if not demo_stocks:
+    st.error("❌ Could not load stock data. Please check your internet connection or API key.")
+    st.stop()
+
+mock_stocks = demo_stocks
 
 
 def get_score_color(score):
@@ -91,7 +108,8 @@ stock = next((s for s in mock_stocks if s["ticker"] == selected_stock), None)
 
 if not show_all and stock:
     # Single stock analysis
-    st.subheader(f"{stock['ticker']} — {stock['name']}")
+    source_badge = f"📡 {stock['source']}" if stock['source'] == 'FMP' else f"📋 {stock['source']}"
+    st.subheader(f"{stock['ticker']} — {stock['name']} {source_badge}")
     st.markdown("---")
 
     # Basic metrics
@@ -443,6 +461,7 @@ else:
         comparison_data.append(
             {
                 "Ticker": s["ticker"],
+                "Source": s.get("source", "UNKNOWN"),
                 "Price": f"${s['price']:.2f}",
                 "P/E": f"{s['pe_ratio']:.1f}",
                 "P/B": f"{s['pb_ratio']:.2f}",

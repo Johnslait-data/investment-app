@@ -103,7 +103,23 @@ class FMPOptimizedFetcher:
         # Try TTM first (sometimes free)
         data = self._get("/ratios-ttm", {"symbol": ticker})
         if data and isinstance(data, list) and len(data) > 0:
-            return data[0]
+            ratios = data[0]
+            # Normalize field names from TTM format
+            return {
+                "peRatio": ratios.get("priceToEarningsRatioTTM"),
+                "pbRatio": ratios.get("priceToBookRatioTTM"),
+                "currentRatio": ratios.get("currentRatioTTM"),
+                "quickRatio": ratios.get("quickRatioTTM"),
+                "debtEquityRatio": ratios.get("debtToEquityRatioTTM"),
+                "returnOnEquity": ratios.get("returnOnEquity"),
+                "returnOnAssets": ratios.get("returnOnAssets"),
+                "returnOnCapitalEmployed": ratios.get("returnOnCapitalEmployed"),
+                "debtRatio": ratios.get("debtToAssetsRatioTTM"),
+                "bookValuePerShare": ratios.get("bookValuePerShareTTM"),
+                "eps": ratios.get("netIncomePerShareTTM"),
+                "fcfPerShare": ratios.get("freeCashFlowPerShareTTM"),
+                "revenuePerShare": ratios.get("revenuePerShareTTM"),
+            }
 
         # Fallback to regular ratios
         data = self._get("/ratios", {"symbol": ticker, "limit": 1})
@@ -114,9 +130,19 @@ class FMPOptimizedFetcher:
 
     def get_key_metrics(self, ticker: str) -> Optional[Dict]:
         """Get key metrics (FREE)"""
-        data = self._get("/key-metrics", {"symbol": ticker, "limit": 1})
+        data = self._get("/key-metrics-ttm", {"symbol": ticker, "limit": 1})
         if isinstance(data, list) and len(data) > 0:
-            return data[0]
+            metrics = data[0]
+            # Extract key fields from TTM format
+            return {
+                "marketCap": metrics.get("marketCap"),
+                "earningsYield": metrics.get("earningsYieldTTM"),
+                "grahamNumber": metrics.get("grahamNumberTTM"),
+                "netCurrentAssetValue": metrics.get("netCurrentAssetValueTTM"),
+                "returnOnEquity": metrics.get("returnOnEquityTTM"),
+                "returnOnAssets": metrics.get("returnOnAssetsTTM"),
+                "returnOnCapitalEmployed": metrics.get("returnOnCapitalEmployedTTM"),
+            }
         return None
 
     def get_financial_scores(self, ticker: str) -> Optional[Dict]:
@@ -150,7 +176,6 @@ class FMPOptimizedFetcher:
             if not profile:
                 return None
 
-            quote = self.get_quote(ticker)
             ratios = self.get_ratios(ticker)
             metrics = self.get_key_metrics(ticker)
             scores = self.get_financial_scores(ticker)
@@ -190,18 +215,19 @@ class FMPOptimizedFetcher:
                 "current_ratio": ratios.get("currentRatio") if ratios else None,
                 "quick_ratio": ratios.get("quickRatio") if ratios else None,
                 "debt_to_equity": ratios.get("debtEquityRatio") if ratios else None,
-                "roe": ratios.get("returnOnEquity") if ratios else None,
-                "roa": ratios.get("returnOnAssets") if ratios else None,
-                "roic": ratios.get("returnOnCapitalEmployed") if ratios else None,
                 "debt_ratio": ratios.get("debtRatio") if ratios else None,
+                "book_value_per_share": ratios.get("bookValuePerShare") if ratios else None,
+                "eps": ratios.get("eps") if ratios else None,
+                "revenue_per_share": ratios.get("revenuePerShare") if ratios else None,
+                "fcf_per_share": ratios.get("fcfPerShare") if ratios else None,
 
-                # Key Metrics
+                # Key Metrics (Return metrics)
+                "roe": metrics.get("returnOnEquity") if metrics else None,
+                "roa": metrics.get("returnOnAssets") if metrics else None,
+                "roic": metrics.get("returnOnCapitalEmployed") if metrics else None,
                 "earnings_yield": metrics.get("earningsYield") if metrics else None,
-                "book_value_per_share": metrics.get("bookValuePerShare") if metrics else None,
-                "revenue_per_share": metrics.get("revenuePerShare") if metrics else None,
-                "dividend_yield": metrics.get("dividendYield") if metrics else None,
-                "payout_ratio": metrics.get("payoutRatio") if metrics else None,
-                "fcf_per_share": metrics.get("freeCashFlowPerShare") if metrics else None,
+                "graham_number": metrics.get("grahamNumber") if metrics else None,
+                "ncav_per_share": metrics.get("netCurrentAssetValue") if metrics else None,
 
                 # Financial Scores
                 "altman_z_score": scores.get("altmanZScore") if scores else None,

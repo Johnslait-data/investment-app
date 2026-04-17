@@ -28,63 +28,67 @@ class DataValidator:
         errors = []
 
         # Check 1: Price should be positive
-        if price <= 0:
+        if price is None or price <= 0:
             errors.append("❌ Precio debe ser positivo")
-        if price > 100000:
+        elif price > 100000:
             warnings.append("⚠️ Precio muy alto (>100,000) - verifica moneda")
-        if price < 0.01:
+        elif price < 0.01:
             warnings.append("⚠️ Precio muy bajo (<0.01) - acciones de penique")
 
         # Check 2: EPS should be positive (usually)
-        if eps <= 0:
+        if eps is not None and eps <= 0:
             warnings.append("⚠️ EPS negativo o cero - empresa no es rentable (aún)")
-        if eps > price * 2:
+        elif eps is not None and price is not None and eps > price * 2:
             warnings.append("⚠️ EPS muy alto vs precio - verifica datos")
 
         # Check 3: Book Value should be positive
-        if bvps <= 0:
+        if bvps is not None and bvps <= 0:
             errors.append("❌ Book Value debe ser positivo")
 
         # Check 4: P/E Ratio
-        if pe_ratio < 0:
+        if pe_ratio is not None and pe_ratio < 0:
             warnings.append("⚠️ P/E negativo - empresa es no rentable")
-        if pe_ratio > 100:
+        elif pe_ratio is not None and pe_ratio > 100:
             warnings.append("⚠️ P/E muy alto (>100) - especulativo")
-        if pe_ratio > 0 and pe_ratio != price / eps:
-            warnings.append("⚠️ P/E no coincide con Precio/EPS - verifica cálculo")
+        elif pe_ratio is not None and pe_ratio > 0 and eps is not None and price is not None:
+            calculated_pe = price / eps
+            if abs(pe_ratio - calculated_pe) / pe_ratio > 0.01:  # 1% tolerance
+                warnings.append("⚠️ P/E no coincide con Precio/EPS - verifica cálculo")
 
         # Check 5: P/B Ratio
-        if pb_ratio < 0:
+        if pb_ratio is not None and pb_ratio < 0:
             errors.append("❌ P/B no puede ser negativo")
-        if pb_ratio > 50:
+        elif pb_ratio is not None and pb_ratio > 50:
             warnings.append("⚠️ P/B muy alto (>50) - muy sobrevalorado")
-        if pb_ratio > 0 and pb_ratio != price / bvps:
-            warnings.append("⚠️ P/B no coincide con Precio/BVPS - verifica cálculo")
+        elif pb_ratio is not None and pb_ratio > 0 and bvps is not None and price is not None:
+            calculated_pb = price / bvps
+            if abs(pb_ratio - calculated_pb) / pb_ratio > 0.01:  # 1% tolerance
+                warnings.append("⚠️ P/B no coincide con Precio/BVPS - verifica cálculo")
 
         # Check 6: Current Ratio
-        if current_ratio:
+        if current_ratio is not None:
             if current_ratio < 0.5:
                 warnings.append("⚠️ Current Ratio muy bajo (<0.5) - problemas de liquidez")
-            if current_ratio > 5:
+            elif current_ratio > 5:
                 warnings.append("⚠️ Current Ratio muy alto (>5) - dinero ocioso")
 
         # Check 7: D/E Ratio
-        if de_ratio:
+        if de_ratio is not None:
             if de_ratio < 0:
                 errors.append("❌ D/E no puede ser negativo")
-            if de_ratio > 5:
+            elif de_ratio > 5:
                 warnings.append("⚠️ D/E muy alto (>5) - empresa muy endeudada")
 
         # Check 8: ROE
-        if roe:
+        if roe is not None:
             if roe < -1 or roe > 1:
                 if roe < 0:
                     warnings.append(f"⚠️ ROE negativo ({roe*100:.1f}%) - pérdidas")
                 elif roe > 1:
-                    warnings.append(f"⚠️ ROE muy alto (>{100:.0f}%) - verifica datos")
+                    warnings.append(f"⚠️ ROE muy alto (>100%) - verifica datos")
 
         # Check 9: Consistency P/E × P/B should ≈ price/assets
-        if pe_ratio > 0 and pb_ratio > 0:
+        if pe_ratio is not None and pb_ratio is not None and pe_ratio > 0 and pb_ratio > 0:
             ratio_product = pe_ratio * pb_ratio
             if ratio_product > 500:
                 warnings.append(f"⚠️ P/E × P/B muy alto ({ratio_product:.1f}) - sobrevaluado")
