@@ -11,7 +11,7 @@ CACHING STRATEGY:
 import logging
 from typing import Optional, Dict
 from pathlib import Path
-from data.fmp_fetcher_v2 import FMPFetcherV2, get_api_usage
+from data.fmp_fetcher_optimized import FMPOptimizedFetcher, get_api_usage
 from data.cache import StockCache
 from data.mock_data import MOCK_DATA
 
@@ -27,12 +27,12 @@ class UnifiedStockFetcher:
     """
 
     def __init__(self):
-        self.fmp = FMPFetcherV2()
+        self.fmp = FMPOptimizedFetcher()
         self.cache = StockCache(Path("data/stock_cache.db"))
         self.use_fmp = self.fmp.is_available()
 
         if self.use_fmp:
-            logger.info("✅ FMP API available - will use for real data")
+            logger.info("✅ FMP API available (Optimized Free Tier) - will use for real data")
         else:
             logger.warning("⚠️  FMP API not available - will use cache + mock data")
 
